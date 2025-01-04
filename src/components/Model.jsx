@@ -9,13 +9,15 @@ import useDimension from './useDimension';
 import { projects } from './data';
 
 export default function Model({activeMenu}) {
-
     const plane = useRef();
     const { viewport } = useThree();
     const dimension = useDimension();
     const mouse = useMouse();
     const opacity = useMotionValue(0);
-    const textures = projects.map(project => useTexture(project.src))
+    
+    // Fix 1: Move useTexture to the top level and pass all textures at once
+    const textures = useTexture(projects.map(project => project.src));
+    
     const { width, height } = textures[0].image;
     const lerp = (x, y, a) => x * (1 - a) + y * a
 
@@ -29,15 +31,22 @@ export default function Model({activeMenu}) {
         y: useMotionValue(0)
     }   
 
-    useEffect( () => {
+    // Fix 2: Add missing dependencies to useEffect
+    useEffect(() => {
         if(activeMenu != null){
             plane.current.material.uniforms.uTexture.value = textures[activeMenu]
-            animate(opacity, 1, {duration: 0.2, onUpdate: latest => plane.current.material.uniforms.uAlpha.value = latest})
+            animate(opacity, 1, {
+                duration: 0.2, 
+                onUpdate: latest => plane.current.material.uniforms.uAlpha.value = latest
+            })
         }
         else {
-            animate(opacity, 0, {duration: 0.2, onUpdate: latest => plane.current.material.uniforms.uAlpha.value = latest})
+            animate(opacity, 0, {
+                duration: 0.2, 
+                onUpdate: latest => plane.current.material.uniforms.uAlpha.value = latest
+            })
         }
-    }, [activeMenu])
+    }, [activeMenu, opacity, textures]) // Added missing dependencies
 
     const uniforms = useRef({
         uDelta: { value: { x: 0, y: 0 } },
@@ -46,6 +55,7 @@ export default function Model({activeMenu}) {
         uAlpha: { value: 0 }
     })
 
+    // Rest of your component remains the same...
     useFrame(() => {
         const { x, y } = mouse
         const smoothX = smoothMouse.x.get();
@@ -59,7 +69,6 @@ export default function Model({activeMenu}) {
                 y: -1 * (y - smoothY)
             }
         }
-       
     })
 
     const x = useTransform(smoothMouse.x, [0, dimension.width], [-1 * viewport.width / 2, viewport.width / 2])
@@ -68,14 +77,12 @@ export default function Model({activeMenu}) {
     return (
         <motion.mesh position-x={x} position-y={y} ref={plane} scale={scale}>
             <planeGeometry args={[1, 1, 15, 15]}/>
-            {/* <meshBasicMaterial wireframe={true} color="red"/> */}
             <shaderMaterial 
                 vertexShader={vertex}
                 fragmentShader={fragment}
                 uniforms={uniforms.current}
                 transparent={true}
-                // wireframe={true}
             />
         </motion.mesh>
     )
-}
+} 
